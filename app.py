@@ -130,20 +130,9 @@ Evidence: {json.dumps(evidence, ensure_ascii=False)}"""
         return None
 
 def heuristic_extract(dp, pages):
-    terms = [t.lower() for t in dp["terms"]]
-    candidates=[]
-    for p in pages:
-        text=p["text"]
-        for term in terms:
-            for m in re.finditer(re.escape(term), text, re.I):
-                snippet=text[max(0,m.start()-160):min(len(text),m.end()+220)]
-                money=re.search(r'(?:(?:US\$|USD|EUR|GBP|[$€£])\s*)?\d[\d,.]*(?:\s?(?:bn|billion|million|mn|m|k|trillion))?',snippet,re.I)
-                if money:
-                    candidates.append((p,term,snippet,money.group(0)))
-    if not candidates: return None
-    p,term,excerpt,value=candidates[0]
-    return {"value":value.strip(),"confidence":"Low","source_url":p["url"],
-            "source_type":p["source_type"],"excerpt":excerpt.strip()}
+    # Do not guess financial datapoints from nearby numbers.
+    # Return no result unless AI extraction verifies the evidence.
+    return None
 
 def research(url, datapoints, max_pages):
     pages = crawl_site(url, max_pages=max_pages)
@@ -153,8 +142,7 @@ def research(url, datapoints, max_pages):
         external = external_search(f'"{domain}" {dp["name"]} { " ".join(dp["terms"][:4]) }', 5)
         evidence = pages + external
         found = extract_with_openai(dp, evidence)
-        if not found:
-            found = heuristic_extract(dp, evidence)
+       
         if found and found.get("value") and found.get("source_url"):
             all_results.append({"datapoint_name":dp["name"],"value":found["value"],
               "status":"Found","confidence":found.get("confidence","Low"),
